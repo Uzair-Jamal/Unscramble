@@ -2,7 +2,6 @@ import android.app.Activity
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.wrapContentHeight
@@ -17,7 +16,6 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.MaterialTheme.colorScheme
 import androidx.compose.material3.MaterialTheme.shapes
-import androidx.compose.material3.MaterialTheme.typography
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
@@ -65,10 +63,13 @@ fun GameScreen(
                 .wrapContentHeight()
                 .padding(mediumPadding),
             onUserGuessChanged = {gameViewModel.updateUserGuess(it)},
-            onKeyboardDone = { },
+            onKeyboardDone = {gameViewModel.checkUserGuess()},
             currentScrambledWord = gameUiState.currentScrambledWord,
-            userGuess = gameViewModel.userGuess
-        )
+            userGuess = gameViewModel.userGuess,
+            isGuessWrong = gameUiState.isGuessedWordWrong,
+            correctWord = gameUiState.correctWord,
+            wordCount = gameUiState.currentWordCount
+            )
         Column(
             verticalArrangement = Arrangement.spacedBy(mediumPadding),
             horizontalAlignment = Alignment.CenterHorizontally,
@@ -78,7 +79,9 @@ fun GameScreen(
         ){
             Button(modifier = Modifier
                 .fillMaxWidth(),
-                onClick = {}
+                onClick = {
+                    gameViewModel.checkUserGuess()
+                }
             ){
                 Text(
                     text = stringResource(id = R.string.submit),
@@ -88,7 +91,7 @@ fun GameScreen(
 
             OutlinedButton(modifier = Modifier
                 .fillMaxWidth(),
-                onClick = {}
+                onClick = {gameViewModel.skipWord()}
                 ){
                 Text(
                     text = stringResource(R.string.skip),
@@ -96,7 +99,13 @@ fun GameScreen(
                 )
             }
         }
-            GameStatus(score = 0 , modifier = Modifier.padding(20.dp))
+            GameStatus(score = gameUiState.score , modifier = Modifier.padding(20.dp))
+    }
+    if(gameUiState.isGameOver){
+        FinalScoreDialog(
+            score = gameUiState.score,
+            onPlayAgain = { gameViewModel.resetGame() }
+        )
     }
 }
 
@@ -105,20 +114,24 @@ fun GameLayout(
     modifier: Modifier = Modifier,
     currentScrambledWord: String,
     onUserGuessChanged: (String) -> Unit,
-    onKeyboardDone: () -> Unit
+    onKeyboardDone: () -> Unit,
+    isGuessWrong: Boolean,
+    userGuess: String,
+    wordCount: Int,
+    correctWord: String // Added parameter for correct word
 ) {
     val mediumPadding = dimensionResource(id = R.dimen.padding_medium)
-    Card(modifier = Modifier,
+    Card(
+        modifier = modifier,
         elevation = CardDefaults.cardElevation(defaultElevation = 5.dp)
     ) {
         Column(
             verticalArrangement = Arrangement.spacedBy(mediumPadding),
             horizontalAlignment = Alignment.CenterHorizontally,
-            modifier = Modifier
-                .padding(mediumPadding)
+            modifier = Modifier.padding(mediumPadding)
         ) {
             Text(
-                text = stringResource(id = R.string.word_count,0),
+                text = stringResource(id = R.string.word_count, wordCount),
                 style = MaterialTheme.typography.titleMedium,
                 color = colorScheme.onPrimary,
                 modifier = Modifier
@@ -129,31 +142,41 @@ fun GameLayout(
             )
             Text(
                 text = currentScrambledWord,
-                style = MaterialTheme.typography.displayMedium
+                style = MaterialTheme.typography.displayMedium,
+                textAlign = TextAlign.Center
             )
             Text(
                 text = stringResource(id = R.string.instructions),
                 style = MaterialTheme.typography.titleMedium,
                 textAlign = TextAlign.Center
             )
+
             OutlinedTextField(
                 value = userGuess,
                 onValueChange = onUserGuessChanged,
                 singleLine = true,
-                isError = false,
+                isError = isGuessWrong,
                 label = {
-                    Text(stringResource(id = R.string.enter_your_word))
+                    if (isGuessWrong) {
+                        Text(stringResource(R.string.wrong_guess))
+                    } else {
+                        Text(stringResource(id = R.string.enter_your_word))
+                    }
                 },
                 colors = TextFieldDefaults.textFieldColors(containerColor = colorScheme.surface),
                 shape = shapes.large,
-                keyboardOptions = KeyboardOptions.Default.copy(
-                    imeAction = ImeAction.Done
-                ),
-                keyboardActions = KeyboardActions(
-                    onDone={onKeyboardDone()}
-                ),
+                keyboardOptions = KeyboardOptions.Default.copy(imeAction = ImeAction.Done),
+                keyboardActions = KeyboardActions(onDone = { onKeyboardDone() }),
                 modifier = Modifier.fillMaxWidth()
+            )
+            if (correctWord.isNotEmpty()) {
+                Text(
+                    text = "Right Guess: $correctWord", // Display correct word
+                    style = MaterialTheme.typography.bodyLarge,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.padding(vertical = 8.dp)
                 )
+            }
         }
     }
 }
@@ -164,12 +187,13 @@ fun GameStatus(score: Int, modifier: Modifier = Modifier){
         modifier = Modifier
     ){
         Text(
-            text = stringResource(id = R.string.score),
+            text = stringResource(id = R.string.score, score),
             style = MaterialTheme.typography.headlineMedium,
             modifier = Modifier.padding(8.dp)
             )
     }
 }
+
 
 @Composable
 private fun FinalScoreDialog(
